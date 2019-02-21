@@ -1,0 +1,8 @@
+# seq2seq_learning
+seq2seq learning with TensorFlow
+
+使用TensorFlow实现了两个seq2seq，第一个simple的是简单的，只使用了双向的RNN作为编码器和解码器。第二个common使用了teacher forcing，attention，beam search等技巧，效果相对好一点。
+
+训练的语料为清华大学的一个很小的机器翻译语料，说实话质量有点低，导致训练效果不是很好。
+
+这个项目就当是自己学习TensorFlow的seq2seq api接口的练手项目吧。
