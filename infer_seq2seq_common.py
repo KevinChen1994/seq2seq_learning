@@ -3,10 +3,10 @@
 # datetime:2019/2/15 16:34
 # software: PyCharm
 import tensorflow as tf
-from model_seq2seq_common import seq2seq
-from run_seq2seq_common import word_to_id, Config
 import thulac
 
+from model_seq2seq_common import seq2seq
+from run_seq2seq_common import word_to_id, Config
 
 thul = thulac.thulac(seg_only=True)
 
@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
     print('build model...')
     config = Config()
-    model = seq2seq(config, source_word2id, train=False, attention=True, beamSearch=3)
+    model = seq2seq(config, source_word2id, tearchForcing=False, attention=True, beamSearch=3)
 
     print('run model...')
     max_source_length = 50
@@ -33,7 +33,7 @@ if __name__ == '__main__':
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
 
-        source_raw = '经济 、 社会 和 环境 方面 的 发展 、 人居 议程 、 森林 、 能源 、 水 和 卫生 设施'
+        source_raw = '经济、社会和环境方面的发展、人居议程、森林、能源、水和卫生设施'
         source_cut = thul.cut(source_raw, text=True)
 
         source_id = [source_word2id[word] for word in source_cut.split(' ') if word in source_word2id]

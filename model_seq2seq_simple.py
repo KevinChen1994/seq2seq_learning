@@ -4,10 +4,11 @@
 # software: PyCharm
 
 import tensorflow as tf
+from tensorflow.contrib import seq2seq as seq2seq_contrib
 
 
 class seq2seq(object):
-    def build_inputs(self, config):
+    def build_inputs(self):
         self.batch_size = tf.placeholder(dtype=tf.int32, shape=[], name='batch_size')
         self.seq_inputs = tf.placeholder(shape=(None, None), dtype=tf.int32, name='seq_inputs')
         self.seq_inputs_length = tf.placeholder(shape=(None,), dtype=tf.int32, name='seq_inputs_length')
@@ -15,7 +16,7 @@ class seq2seq(object):
         self.seq_targets_length = tf.placeholder(shape=(None,), dtype=tf.int32, name='seq_targets_length')
 
     def __init__(self, config, w2i_target):
-        self.build_inputs(config)
+        self.build_inputs()
         with tf.variable_scope('encoder'):
             encoder_embedding = tf.Variable(tf.random_uniform([config.source_vocab_size, config.embedding_dim]),
                                             dtype=tf.float32, name='encoder_embedding')
@@ -40,7 +41,7 @@ class seq2seq(object):
             token_go = tf.ones([self.batch_size], dtype=tf.int32, name='token_go') * w2i_target['_GO']
 
             # helper对象
-            helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(decoder_embedding, token_go, w2i_target["_EOS"])
+            helper = seq2seq_contrib.GreedyEmbeddingHelper(decoder_embedding, token_go, w2i_target["_EOS"])
 
             with tf.variable_scope('gru_cell'):
                 decoder_cell = tf.nn.rnn_cell.GRUCell(config.hidden_dim)
@@ -48,19 +49,20 @@ class seq2seq(object):
                 decoder_initial_state = encoder_state
 
             # 构建decoder
-            decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper, decoder_initial_state,
-                                                      output_layer=tf.layers.Dense(config.target_vocab_size))
-            decoder_outputs, decoder_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(decoder,
-                                                                                                       maximum_iterations=tf.reduce_max(
-                                                                                                           self.seq_targets_length))
+            decoder = seq2seq_contrib.BasicDecoder(decoder_cell, helper, decoder_initial_state,
+                                                   output_layer=tf.layers.Dense(config.target_vocab_size))
+            decoder_outputs, decoder_state, final_sequence_lengths = seq2seq_contrib.dynamic_decode(decoder,
+                                                                                                    maximum_iterations=tf.reduce_max(
+                                                                                                        self.seq_targets_length))
 
             self.decoder_logits = decoder_outputs.rnn_output
             self.out = tf.argmax(self.decoder_logits, 2)
 
             # mask掉填充的0，使后边计算的时候0不参与计算。
             sequence_mask = tf.sequence_mask(self.seq_targets_length, dtype=tf.float32)
-            self.loss = tf.contrib.seq2seq.sequence_loss(logits=self.decoder_logits, targets=self.seq_targets,
-                                                         weights=sequence_mask)
+            self.loss = seq2seq_contrib.sequence_loss(logits=self.decoder_logits, targets=self.seq_targets,
+                                                      weights=sequence_mask)
+            # 防止梯度消失和梯度爆炸
             opt = tf.train.AdamOptimizer(config.learning_rate)
             gradients = opt.compute_gradients(self.loss)
             capped_gradients = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in gradients if grad is not None]

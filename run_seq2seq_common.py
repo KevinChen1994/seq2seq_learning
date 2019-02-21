@@ -31,6 +31,7 @@ class Config(object):
     target_vocab_size = 20000
 
 
+# 构建词表
 def make_vocab(data_dir, vocab_dir):
     with open(data_dir, 'r', encoding='utf-8') as file:
         lines = file.readlines()
@@ -46,6 +47,7 @@ def make_vocab(data_dir, vocab_dir):
                 f.write('\n')
 
 
+# 获得词与ID之间的字典
 def word_to_id(vocab_dir):
     with open(vocab_dir, 'r', encoding='utf-8') as f:
         words = f.readlines()
@@ -57,24 +59,17 @@ def word_to_id(vocab_dir):
         return word2id, id2word
 
 
+# 将文件转成id形式
 def process_file(data_dir, word2id):
-    """将文件转成id形式"""
     doc_id = []
     with open(data_dir, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-        for line in lines:
-            line = line.replace('\n', '')
-            if line != '':
-                line_id = []
-                for word in line.split(' '):
-                    if word in word2id:
-                        line_id.append(word2id[word])
-                    else:
-                        line_id.append(3)
-                doc_id.append(line_id)
+        for i in range(len(lines)):
+            doc_id.append([word2id[x] if x in word2id else 3 for x in lines[i].replace('\n', '')])
     return doc_id
 
 
+# 训练数据迭代器
 def data_batch(source_id, target_id, source_word2id, target_word2id):
     data_len = len(source_id)
     n_batch = int(data_len // config.batch_size) + 1
@@ -105,8 +100,8 @@ def data_batch_validation(source_id, target_id, source_word2id, target_word2id):
     data_len = len(source_id)
     start_id = random.randint(0, data_len - 129)
     end_id = start_id + 128
-    max_source_len = max([len(sentence) for sentence in source_id[start_id: end_id]])
-    max_target_len = max([len(sentence) for sentence in target_id[start_id: end_id]])
+    max_source_len = max([50 if len(sentence) > 50 else len(sentence) for sentence in source_id[start_id: end_id]])
+    max_target_len = max([50 if len(sentence) > 50 else len(sentence) for sentence in target_id[start_id: end_id]])
     source_len = [max_source_len if len(p) > max_source_len else len(p) for p in source_id[start_id: end_id]]
     target_len = [max_target_len if len(p) > max_target_len else len(p) for p in target_id[start_id: end_id]]
     source, target = [], []
@@ -140,7 +135,7 @@ if __name__ == '__main__':
 
     print('build model...')
     config = Config()
-    model = seq2seq(config, source_word2id, train=True, attention=True, beamSearch=1)
+    model = seq2seq(config, source_word2id, tearchForcing=True, attention=True, beamSearch=1)
 
     print('training...')
     with tf.Session() as sess:
@@ -161,6 +156,7 @@ if __name__ == '__main__':
                     model.seq_targets: target,
                     model.seq_targets_length: target_len
                 }
+                # 训练集损失
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict)
 
                 if batch % print_every == 0 and batch > 0:
@@ -174,6 +170,7 @@ if __name__ == '__main__':
                         model.seq_targets: target_validation,
                         model.seq_targets_length: target_len_validation
                     }
+                    # 验证集损失
                     loss_validation = sess.run(model.loss, feed_dict_validation)
 
                     print("-----------------------------")
@@ -183,4 +180,4 @@ if __name__ == '__main__':
                     print("loss_train:", loss)
                     print("loss_validation:", loss_validation)
 
-        print(saver.save(sess, "checkpoint/model.ckpt"))
+        print(saver.save(sess, "checkpoint/common/model.ckpt"))

@@ -8,15 +8,15 @@ from tensorflow.contrib import seq2seq as seq2seq_contrib
 
 
 class seq2seq(object):
-    def build_inputs(self, config):
+    def build_inputs(self):
         self.batch_size = tf.placeholder(dtype=tf.int32, shape=[], name='batch_size')
         self.seq_inputs = tf.placeholder(shape=(None, None), dtype=tf.int32, name='seq_inputs')
         self.seq_inputs_length = tf.placeholder(shape=(None,), dtype=tf.int32, name='seq_inputs_length')
         self.seq_targets = tf.placeholder(shape=(None, None), dtype=tf.int32, name='seq_targets')
         self.seq_targets_length = tf.placeholder(shape=(None,), dtype=tf.int32, name='seq_targets_length')
 
-    def __init__(self, config, w2i_target, train=True, attention=True, beamSearch=1):
-        self.build_inputs(config)
+    def __init__(self, config, w2i_target, tearchForcing=True, attention=True, beamSearch=1):
+        self.build_inputs()
         with tf.variable_scope('encoder'):
             encoder_embedding = tf.Variable(tf.random_uniform([config.source_vocab_size, config.embedding_dim]),
                                             dtype=tf.float32, name='encoder_embedding')
@@ -40,12 +40,14 @@ class seq2seq(object):
                                             dtype=tf.float32, name='decoder_embedding')
             token_go = tf.ones([self.batch_size], dtype=tf.int32, name='token_go') * w2i_target['_GO']
             # helper对象
-            if train:
-                # 在target前加上GO标签，并且去掉最后一个字符<EOS>，因为这个字符是不参数decoder的输入的
+            if tearchForcing:
+                # 在target前加上GO标签，并且去掉最后一个字符<EOS>，因为这个字符是不参与decoder的输入的
+                # 将target本身作为作为输入进行训练，这就是teacher Forcing，在inference阶段不能使用
                 decoder_inputs = tf.concat([tf.reshape(token_go, [-1, 1]), self.seq_targets[:, :-1]], 1)
                 helper = seq2seq_contrib.TrainingHelper(tf.nn.embedding_lookup(decoder_embedding, decoder_inputs),
-                                                self.seq_targets_length)
+                                                        self.seq_targets_length)
             else:
+                # 将decoder解码的输出作为下一个RNN单元的输入
                 helper = seq2seq_contrib.GreedyEmbeddingHelper(decoder_embedding, token_go, w2i_target["_EOS"])
 
             with tf.variable_scope('gru_cell'):
@@ -53,28 +55,31 @@ class seq2seq(object):
 
                 if attention:
                     if beamSearch > 1:
+                        # 使用beamSearch的话，将encoder的输出，句子长度的batch，encoder的最后一个状态重复beamSearch的倍数。
                         tiled_encoder_outputs = seq2seq_contrib.tile_batch(encoder_outputs, multiplier=beamSearch)
-                        tiled_sequence_length = seq2seq_contrib.tile_batch(self.seq_inputs_length, multiplier=beamSearch)
+                        tiled_sequence_length = seq2seq_contrib.tile_batch(self.seq_inputs_length,
+                                                                           multiplier=beamSearch)
                         attention_mechanism = seq2seq_contrib.BahdanauAttention(num_units=config.hidden_dim,
-                                                                        memory=tiled_encoder_outputs,
-                                                                        memory_sequence_length=tiled_sequence_length)
+                                                                                memory=tiled_encoder_outputs,
+                                                                                memory_sequence_length=tiled_sequence_length)
                         decoder_cell = seq2seq_contrib.AttentionWrapper(cell=decoder_cell,
-                                                                attention_mechanism=attention_mechanism)
+                                                                        attention_mechanism=attention_mechanism)
                         tiled_encoder_final_state = seq2seq_contrib.tile_batch(encoder_state, multiplier=beamSearch)
                         tiled_decoder_initial_state = decoder_cell.zero_state(batch_size=self.batch_size * beamSearch,
-                                                                        dtype=tf.float32)
-                        tiled_decoder_initial_state = tiled_decoder_initial_state.clone(cell_state=tiled_encoder_final_state)
+                                                                              dtype=tf.float32)
+                        tiled_decoder_initial_state = tiled_decoder_initial_state.clone(
+                            cell_state=tiled_encoder_final_state)
                         decoder_initial_state = tiled_decoder_initial_state
                     else:
                         attention_mechanism = seq2seq_contrib.BahdanauAttention(num_units=config.hidden_dim,
-                                                                        memory=encoder_outputs,
-                                                                        memory_sequence_length=self.seq_inputs_length)
+                                                                                memory=encoder_outputs,
+                                                                                memory_sequence_length=self.seq_inputs_length)
                         # 另外一种attention计算方式
                         # attention_mechanism = seq2seq_contrib.LuongAttention(num_units=config.hidden_dim,
                         #                                                 memory=encoder_outputs,
                         #                                                 memory_sequence_length=self.seq_inputs_length)
                         decoder_cell = seq2seq_contrib.AttentionWrapper(cell=decoder_cell,
-                                                                attention_mechanism=attention_mechanism)
+                                                                        attention_mechanism=attention_mechanism)
                         decoder_initial_state = decoder_cell.zero_state(batch_size=self.batch_size, dtype=tf.float32)
                         decoder_initial_state = decoder_initial_state.clone(cell_state=encoder_state)
 
@@ -87,17 +92,19 @@ class seq2seq(object):
             if beamSearch > 1:
                 # 构建decoder
                 decoder = seq2seq_contrib.BeamSearchDecoder(cell=decoder_cell, embedding=decoder_embedding,
-                                                    start_tokens=token_go,
-                                                    end_token=w2i_target['_EOS'], initial_state=decoder_initial_state,
-                                                    beam_width=beamSearch,
-                                                    output_layer=tf.layers.Dense(units=config.target_vocab_size))
+                                                            start_tokens=token_go,
+                                                            end_token=w2i_target['_EOS'],
+                                                            initial_state=decoder_initial_state,
+                                                            beam_width=beamSearch,
+                                                            output_layer=tf.layers.Dense(
+                                                                units=config.target_vocab_size))
             else:
                 # 构建decoder
                 decoder = seq2seq_contrib.BasicDecoder(decoder_cell, helper, decoder_initial_state,
-                                               output_layer=tf.layers.Dense(config.target_vocab_size))
+                                                       output_layer=tf.layers.Dense(config.target_vocab_size))
             decoder_outputs, decoder_state, final_sequence_lengths = seq2seq_contrib.dynamic_decode(decoder,
-                                                                                            maximum_iterations=tf.reduce_max(
-                                                                                                self.seq_targets_length))
+                                                                                                    maximum_iterations=tf.reduce_max(
+                                                                                                        self.seq_targets_length))
         if beamSearch > 1:
             self.out = decoder_outputs.predicted_ids[:, :, 0]
         else:
@@ -107,7 +114,8 @@ class seq2seq(object):
             # mask掉填充的0，使后边计算的时候0不参与计算。
             sequence_mask = tf.sequence_mask(self.seq_targets_length, dtype=tf.float32)
             self.loss = seq2seq_contrib.sequence_loss(logits=self.decoder_logits, targets=self.seq_targets,
-                                              weights=sequence_mask)
+                                                      weights=sequence_mask)
+            # 防止梯度消失和梯度爆炸
             opt = tf.train.AdamOptimizer(config.learning_rate)
             gradients = opt.compute_gradients(self.loss)
             capped_gradients = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in gradients if grad is not None]
