@@ -135,7 +135,7 @@ if __name__ == '__main__':
 
     print('build model...')
     config = Config()
-    model = seq2seq(config, source_word2id, tearchForcing=True, attention=True, beamSearch=1)
+    model = seq2seq(config, source_word2id, tearcherForcing=True, attention=True, beamSearch=1)
 
     print('training...')
     with tf.Session() as sess:

@@ -15,7 +15,7 @@ class seq2seq(object):
         self.seq_targets = tf.placeholder(shape=(None, None), dtype=tf.int32, name='seq_targets')
         self.seq_targets_length = tf.placeholder(shape=(None,), dtype=tf.int32, name='seq_targets_length')
 
-    def __init__(self, config, w2i_target, tearchForcing=True, attention=True, beamSearch=1):
+    def __init__(self, config, w2i_target, tearcherForcing=True, attention=True, beamSearch=1):
         self.build_inputs()
         with tf.variable_scope('encoder'):
             encoder_embedding = tf.Variable(tf.random_uniform([config.source_vocab_size, config.embedding_dim]),
@@ -40,7 +40,7 @@ class seq2seq(object):
                                             dtype=tf.float32, name='decoder_embedding')
             token_go = tf.ones([self.batch_size], dtype=tf.int32, name='token_go') * w2i_target['_GO']
             # helper对象
-            if tearchForcing:
+            if tearcherForcing:
                 # 在target前加上GO标签，并且去掉最后一个字符<EOS>，因为这个字符是不参与decoder的输入的
                 # 将target本身作为作为输入进行训练，这就是teacher Forcing，在inference阶段不能使用
                 decoder_inputs = tf.concat([tf.reshape(token_go, [-1, 1]), self.seq_targets[:, :-1]], 1)

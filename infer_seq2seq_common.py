@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
     print('build model...')
     config = Config()
-    model = seq2seq(config, source_word2id, tearchForcing=False, attention=True, beamSearch=3)
+    model = seq2seq(config, source_word2id, tearcherForcing=False, attention=True, beamSearch=3)
 
     print('run model...')
     max_source_length = 50
