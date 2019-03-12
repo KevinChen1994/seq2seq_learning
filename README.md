@@ -12,3 +12,5 @@ TensorFLow=1.12
 训练的语料为清华大学的一个很小的机器翻译语料，说实话质量有点低，导致训练效果不是很好。
 
 这个项目就当是自己学习TensorFlow的seq2seq api接口的练手项目吧。
+
+详细介绍在我的知乎专栏中：https://zhuanlan.zhihu.com/p/57155059
