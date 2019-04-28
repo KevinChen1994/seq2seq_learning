@@ -65,7 +65,7 @@ def process_file(data_dir, word2id):
     with open(data_dir, 'r', encoding='utf-8') as f:
         lines = f.readlines()
         for i in range(len(lines)):
-            doc_id.append([word2id[x] if x in word2id else 3 for x in lines[i].replace('\n', '')])
+            doc_id.append([word2id[x] if x in word2id else 3 for x in lines[i].replace('\n', '').split(' ')])
     return doc_id
 
 
